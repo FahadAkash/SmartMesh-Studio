@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { OpenAI } from '@langchain/openai';
+import { ChatOpenAI } from '@langchain/openai';
 import { useShaderStore } from '../stores/shaderStore';
 
 export const ChatInterface = () => {
@@ -8,31 +8,44 @@ export const ChatInterface = () => {
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
   const handleGenerateShader = async () => {
-    const llm = new OpenAI({
+    const llm = new ChatOpenAI({
       openAIApiKey: apiKey,
       temperature: 0.7,
-      modelName: 'gpt-4',
+      modelName: 'gpt-3.5-turbo', // Use the correct model name (likely 'gpt-4')
     });
-    
-    const response = await llm.invoke(`
-      Generate GLSL shader code for: ${prompt}
-      Return JSON format:
-      {
-        "vertex": "vertex shader code",
-        "fragment": "fragment shader code",
-        "uniforms": {"uniform_name": "type"}
-      }
-    `);
 
-    const parsedShader = JSON.parse(response);
-    setShaderConfig({
-      vertexShader: parsedShader.vertex,
-      fragmentShader: parsedShader.fragment,
-      uniforms: Object.keys(parsedShader.uniforms).reduce((acc, key) => ({
-        ...acc,
-        [key]: { value: parsedShader.uniforms[key] }
-      }), {})
-    });
+    const response = await llm.invoke([
+      {
+        role: 'system',
+        content: 'You are a shader generator assistant.',
+      },
+      {
+        role: 'user',
+        content: `
+          Generate GLSL shader code for: ${prompt}
+          Return JSON format:
+          {
+            "vertex": "vertex shader code",
+            "fragment": "fragment shader code",
+            "uniforms": {"uniform_name": "type"}
+          }
+        `,
+      },
+    ]);
+
+    try {
+      const parsedShader = JSON.parse(response.content.toString()); // Access `.content` for chat responses
+      setShaderConfig({
+        vertexShader: parsedShader.vertex,
+        fragmentShader: parsedShader.fragment,
+        uniforms: Object.keys(parsedShader.uniforms).reduce((acc, key) => ({
+          ...acc,
+          [key]: { value: parsedShader.uniforms[key] },
+        }), {}),
+      });
+    } catch (error) {
+      console.error('Failed to parse shader response:', error);
+    }
   };
 
   return (
